@@ -77,10 +77,12 @@ class DiscreteEnvironment(object):
 
         coord = []
         divider = 1
+        remainder = node_id
         for i in range(1, len(self.num_cells))[::-1]:
-            divider *= self.num_cells[i]
-            coord.append(int(node_id/divider))
-        coord.append(int(node_id % divider))
+            divider = reduce(lambda x, y: x * y, self.num_cells[:i], 1)
+            coord.append(int(remainder/divider))
+            remainder = remainder % divider
+        coord.append(remainder)
         coord = coord[::-1]
-        print "Coord ", node_id, "Node ", coord
+        #print "Coord ", node_id, "Node ", coord
         return coord
