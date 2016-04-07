@@ -1,5 +1,6 @@
 import numpy
 from DiscreteEnvironment import DiscreteEnvironment
+import time
 
 class HerbEnvironment(object):
     
@@ -107,3 +108,144 @@ class HerbEnvironment(object):
         with self.robot.GetEnv():
             self.robot.SetDOFValues(dof_values, self.robot.GetActiveDOFIndices(), checklimits=True)
         return self.robot.GetEnv().CheckCollision(self.robot,self.table) or self.robot.GetEnv().CheckCollision(self.robot,self.robot)
+
+    def ComputeConfigDistance(self, start_config, end_config):
+        ConfigDist = numpy.linalg.norm(end_config - start_config)
+        return ConfigDist
+
+    def SetGoalParameters(self, goal_config, p = 0.2):
+        self.goal_config = goal_config
+        self.p = p
+
+    def GenerateRandomConfiguration(self):
+        config = [0] * len(self.robot.GetActiveDOFIndices())
+
+        #
+        # TODO: Generate and return a random configuration
+        #
+
+        lower_limits, upper_limits = self.robot.GetActiveDOFLimits()
+        
+        while True:
+           
+            config = numpy.random.uniform(lower_limits, upper_limits)
+            
+            check = self.CollisionChecker(config)
+
+            if check == False:
+                break
+        
+        return numpy.array(config)
+
+    def CollisionChecker(self, config):
+
+        with self.robot.GetEnv():
+            self.robot.SetDOFValues(config, self.robot.GetActiveDOFIndices())
+
+        # collision check: when there is collision, return true
+        check_1 = self.robot.GetEnv().CheckCollision(self.robot) 
+
+        # self collision check: when self collision, return true
+        check_2 = self.robot.CheckSelfCollision()
+
+        # we want both to be false
+        check = check_1 or check_2
+        
+        return check
+
+    def Extend(self, start_config, end_config):
+        
+        #
+        # TODO: Implement a function which attempts to extend from 
+        #   a start configuration to a goal configuration
+        #
+        
+        stepSize = 0.1
+        numOfInterp = int(self.ComputeDistance(start_config, end_config)/stepSize)
+        #print "numOfInterp", numOfInterp
+        interp_config = numpy.zeros(len(start_config))
+        i=0
+        
+        for i in range(numOfInterp):
+            for j in range(len(start_config)):
+                interp_config[j] = numpy.linspace(start_config[j], end_config[j], numOfInterp)[i]
+
+            check = self.CollisionChecker(interp_config)
+
+            if check == False:
+                extend_config = numpy.array(interp_config)
+            else:
+                break
+
+        if i == 1 or i == 0:
+            #print "can't extend"
+            return None
+        else:
+            #print "---- extend ----, i-->", i 
+            
+            return extend_config
+
+    def Extend_max(self, start_config, end_config, max_extend):
+        
+        #
+        # TODO: Implement a function which attempts to extend from 
+        #   a start configuration to a goal configuration
+        #
+        
+        plan_step_size = 0.05
+        unit_vec = end_config - start_config #[x - y for x, y in zip(end_config,start_config)]
+        dist = numpy.linalg.norm(unit_vec)
+        unit_vec = [i / dist for i in unit_vec]
+        count = 0
+        curr_config = start_config
+        c3 = False
+        while True:
+          #print count
+          c1 = count*plan_step_size < dist  #condition 1: end_config is not  reached
+          c2 =  count*plan_step_size < max_extend #condition 2: within boundaries
+
+          if  not c1: return end_config
+          if not c2: return numpy.array(curr_config) - plan_step_size*numpy.array(unit_vec)
+          c3 = not self.CollisionChecker(curr_config) #condition 3: robot is not in collision
+          if not c3: break
+          count += 1
+          curr_config = [ x + count*plan_step_size*y for x,y in zip(start_config, unit_vec)]
+        #print curr_config, start_config  
+        if all([i == j for i,j in zip(curr_config,start_config)]): return None
+        curr_config = [ x - plan_step_size*y for x,y in zip(start_config, unit_vec)]
+        if all([i == j for i,j in zip(curr_config,start_config)]): return None
+        return numpy.array(curr_config)
+        
+    def ShortenPath(self, path, timeout=5.0):
+       
+        tstart = time.time()
+
+        while ( (time.time() - tstart) < timeout ):
+
+
+            x1, x2 = sorted(random.sample(range(len(path)), 2))
+
+
+            #x1 = int(numpy.random.uniform(0,len(path)-1))
+            #x2 = int(numpy.random.uniform(x1+1,len(path)-1))
+            start_config = path[x1]
+            end_config = path[x2]
+
+            #print (x1,x2)
+            #print len(path)
+            #print path
+
+            extend_config = self.Extend(start_config, end_config)
+
+            if extend_config != None:
+                if all(extend_config ==  end_config):
+                    
+                    #print "successful connection"
+                    new_path = []
+                    for i in range(0,x1+1):
+                        new_path.append(path[i])
+                    for i in range(x2,len(path)):
+                        new_path.append(path[i])
+                    path = new_path
+        
+        return path
