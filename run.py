@@ -12,6 +12,8 @@ from DepthFirstPlanner import DepthFirstPlanner
 from BreadthFirstPlanner import BreadthFirstPlanner
 from HeuristicRRTPlanner import HeuristicRRTPlanner
 
+import time
+
 def main(robot, planning_env, planner):
 
     raw_input('Press any key to begin planning')
@@ -21,9 +23,11 @@ def main(robot, planning_env, planner):
         goal_config = numpy.array([ 4.6, -1.76, 0.00, 1.96, -1.15, 0.87, -1.43] )
     else:
         goal_config = numpy.array([3.0, 0.0])
-
+    start_time = time.time()
     plan = planner.Plan(start_config, goal_config)
     traj = robot.ConvertPlanToTrajectory(plan)
+    planning_time = time.time() - start_time
+    print "Time To Plan:", planning_time
 
     raw_input('Press any key to execute trajectory')
     robot.ExecuteTrajectory(traj)

@@ -21,6 +21,25 @@ class SimpleEnvironment(object):
         self.table.SetTransform(table_pose)
 
     def GetSuccessors(self, node_id):
+        n = 1
+        successors = []
+
+        # TODO: Here you will implement a function that looks
+        #  up the configuration associated with the particular node_id
+        #  and return a list of node_ids that represent the neighboring
+        #  nodes
+        grid_coord = self.discrete_env.NodeIdToGridCoord(node_id)
+        num = self.discrete_env.dimension*2
+        dimension_to_inc = 0
+        increments = [n, -1*n] #basically get increment by +n then -n in each dimension
+        for i in range(self.discrete_env.dimension): #iterate through each dimension (4-connected)
+            for j in range(len(increments)): #apply the each inc on each dimension
+                neighbor = list(grid_coord)
+                neighbor[i] += increments[j] #ith joint with jth increment
+
+                neighbor_id = self.discrete_env.GridCoordToNodeId(neighbor)
+                successors.append(neighbor_id)
+        return successors
 
         # successors = []
 
@@ -28,11 +47,11 @@ class SimpleEnvironment(object):
         #  up the configuration associated with the particular node_id
         #  and return a list of node_ids that represent the neighboring
         #  nodes
-        grid_coord = self.discrete_env.NodeIdToGridCoord(node_id)
-        successors = [self.discrete_env.GridCoordToNodeId([grid_coord[0] + x, grid_coord[1] + y])
-                      for x, y in [[-1, 0], [0, 1], [1, 0], [0, -1]]
-                      if -1 < grid_coord[0] + x < self.discrete_env.num_cells[0] and -1 < grid_coord[1] + y < self.discrete_env.num_cells[1]]
-        return successors
+        # grid_coord = self.discrete_env.NodeIdToGridCoord(node_id)
+        # successors = [self.discrete_env.GridCoordToNodeId([grid_coord[0] + x, grid_coord[1] + y])
+        #               for x, y in [[-1, 0], [0, 1], [1, 0], [0, -1]]
+        #               if -1 < grid_coord[0] + x < self.discrete_env.num_cells[0] and -1 < grid_coord[1] + y < self.discrete_env.num_cells[1]]
+        # return successors
 
     def ComputeDistance(self, start_id, end_id):
 
@@ -41,22 +60,26 @@ class SimpleEnvironment(object):
         # TODO: Here you will implement a function that 
         # computes the distance between the configurations given
         # by the two node ids
-        start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
-        end_grid_coord = self.discrete_env.NodeIdToGridCoord(end_id)
-
-        # Manhattan Distance
-        dist = sum([abs(x1 - x2)] for x1, x2 in zip(start_grid_coord, end_grid_coord))
-        return dist
+        start_config = self.discrete_env.NodeIdToConfiguration(start_id)
+        end_config = self.discrete_env.NodeIdToConfiguration(end_id)
+        cost = numpy.linalg.norm(numpy.array(end_config) - numpy.array(start_config)) / 2.0
+        # Euclidean Distance (Direction)
+        #cost = numpy.sqrt(sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)]))
+        return cost
 
     def ComputeHeuristicCost(self, start_id, goal_id):
         # TODO: Here you will implement a function that 
         # computes the heuristic cost between the configurations
         # given by the two node ids
-        start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
-        end_grid_coord = self.discrete_env.NodeIdToGridCoord(goal_id)
+        # start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
+        # end_grid_coord = self.discrete_env.NodeIdToGridCoord(goal_id)
+
+        start_config = self.discrete_env.NodeIdToConfiguration(start_id)
+        end_config = self.discrete_env.NodeIdToConfiguration(goal_id)
+        cost = numpy.linalg.norm(numpy.array(end_config) - numpy.array(start_config))
 
         # Euclidean Distance (Direction)
-        cost = sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)])
+        #cost = numpy.sqrt(sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)]))
         return cost
 
     def InitializePlot(self, goal_config):
@@ -94,13 +117,12 @@ class SimpleEnvironment(object):
         
     def checkCollision(self, start_config, end_config):
         no_samples = 10
-        T = self.planning_env.robot.GetTransform()
+        T = self.robot.GetTransform()
         for xpp, ypp in zip(numpy.linspace(start_config[0], end_config[0], no_samples), numpy.linspace(start_config[1], end_config[1], no_samples)):
             T_new = T
             T_new[0][3] = xpp
             T_new[1][3] = ypp
-            self.planning_env.robot.SetTransform(T_new)
-            if self.planning_env.robot.GetEnv().CheckCollision(self.planning_env.robot, self.planning_env.table):
-                print "In collision"
+            self.robot.SetTransform(T_new)
+            if self.robot.GetEnv().CheckCollision(self.robot, self.table):
                 return True
         return False

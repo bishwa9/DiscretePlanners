@@ -22,7 +22,7 @@ class DiscreteEnvironment(object):
             self.num_cells[idx] = numpy.ceil((upper_limits[idx] - lower_limits[idx])/resolution)
 
     def ConfigurationToNodeId(self, config):
-        
+
         # TODO:
         # This function maps a node configuration in full configuration
         # space to a node in discrete space
@@ -31,27 +31,28 @@ class DiscreteEnvironment(object):
         return node_id
 
     def NodeIdToConfiguration(self, nid):
-        
+
         # TODO: Done
         # This function maps a node in discrete space to a configuraiton
         # in the full configuration space
         #
         config = self.GridCoordToConfiguration(self.NodeIdToGridCoord(nid))
         return config
-        
+
     def ConfigurationToGridCoord(self, config):
-        
+
         # TODO:
         # This function maps a configuration in the full configuration space
         # to a grid coordinate in discrete space
         #
         # coord = [0] * self.dimension
-        coord = [math.floor((i - self.lower_limits[index])/self.resolution) for index, i in enumerate(config)]
-        #print "ConfigurationToGridCoord = ", coord, config
+
+        # Check around
+        coord = [numpy.floor((i - self.lower_limits[index])/self.resolution) for index, i in enumerate(config)]
         return coord
 
     def GridCoordToConfiguration(self, coord):
-        
+
         # TODO:
         # This function maps a grid coordinate in discrete space
         # to a configuration in the full configuration space
@@ -61,16 +62,16 @@ class DiscreteEnvironment(object):
         return config
 
     def GridCoordToNodeId(self, coord):
-        
+
         # TODO:
         # This function maps a grid coordinate to the associated
         # node id
 
-        node_id = coord[0] + sum(self.num_cells[i]*coord[i] for i in range(1, len(coord)))
+        node_id = coord[0] + sum([reduce(lambda x, y: x * y, self.num_cells[:i], 1)*coord[i] for i in range(1, len(coord))])
         return node_id
 
     def NodeIdToGridCoord(self, node_id):
-        
+
         # TODO:
         # This function maps a node id to the associated
         # grid coordinate
@@ -80,9 +81,8 @@ class DiscreteEnvironment(object):
         remainder = node_id
         for i in range(1, len(self.num_cells))[::-1]:
             divider = reduce(lambda x, y: x * y, self.num_cells[:i], 1)
-            coord.append(int(remainder/divider))
+            coord.append(math.floor(remainder/divider))
             remainder = remainder % divider
-        coord.append(remainder)
+        coord.append(int(remainder))
         coord = coord[::-1]
-        #print "Coord ", node_id, "Node ", coord
         return coord

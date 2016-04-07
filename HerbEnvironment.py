@@ -43,49 +43,42 @@ class HerbEnvironment(object):
         #  and return a list of node_ids that represent the neighboring
         #  nodes
         grid_coord = self.discrete_env.NodeIdToGridCoord(node_id)
-        num = self.discrete_env.dimension*2
-        dimension_to_inc = 0
         increments = [n, -1*n] #basically get increment by +n then -n in each dimension
         for i in range(self.discrete_env.dimension): #iterate through each dimension (4-connected)
             for j in range(len(increments)): #apply the each inc on each dimension
                 neighbor = list(grid_coord)
                 neighbor[i] += increments[j] #ith joint with jth increment
-                if neighbor[i] < self.lower_limits[i]:
-                    neighbor[i] = self.lower_limits[i]
-
-                if neighbor[i] > self.upper_limits[i]:
-                    neighbor[i] = self.upper_limits[i]
-
                 neighbor_id = self.discrete_env.GridCoordToNodeId(neighbor)
                 successors.append(neighbor_id)
         return successors
 
     def ComputeDistance(self, start_id, end_id):
 
-        dist = 0
+        # dist = 0
 
         # TODO: Here you will implement a function that 
         # computes the distance between the configurations given
         # by the two node ids
-        start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
-        end_grid_coord = self.discrete_env.NodeIdToGridCoord(end_id)
-
-        # Manhattan Distance
-        dist = sum([abs(x1 - x2)] for x1, x2 in zip(start_grid_coord, end_grid_coord))
-        return dist
+        start_config = self.discrete_env.NodeIdToConfiguration(start_id)
+        end_config = self.discrete_env.NodeIdToConfiguration(end_id)
+        cost = numpy.linalg.norm(numpy.array(end_config) - numpy.array(start_config))
+        # Euclidean Distance (Direction)
+        #cost = numpy.sqrt(sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)]))
+        return cost
 
     def ComputeHeuristicCost(self, start_id, goal_id):
-        
-        cost = 0
-
         # TODO: Here you will implement a function that 
         # computes the heuristic cost between the configurations
         # given by the two node ids
-        start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
-        end_grid_coord = self.discrete_env.NodeIdToGridCoord(goal_id)
+        # start_grid_coord = self.discrete_env.NodeIdToGridCoord(start_id)
+        # end_grid_coord = self.discrete_env.NodeIdToGridCoord(goal_id)
+
+        start_config = self.discrete_env.NodeIdToConfiguration(start_id)
+        end_config = self.discrete_env.NodeIdToConfiguration(goal_id)
+        cost = numpy.linalg.norm(numpy.array(end_config) - numpy.array(start_config))
 
         # Euclidean Distance (Direction)
-        cost = sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)])
+        #cost = numpy.sqrt(sum([(x1 - x2)**2 for x1, x2 in zip(start_grid_coord, end_grid_coord)]))
         return cost
 
     def checkCollision(self, start_config, end_config):
