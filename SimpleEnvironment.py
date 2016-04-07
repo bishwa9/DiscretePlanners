@@ -1,5 +1,8 @@
 import numpy
 import pylab as pl
+import random
+import math
+import time
 from DiscreteEnvironment import DiscreteEnvironment
 
 class SimpleEnvironment(object):
@@ -8,6 +11,8 @@ class SimpleEnvironment(object):
         self.robot = herb.robot
         self.lower_limits = [-5., -5.]
         self.upper_limits = [5., 5.]
+        self.boundary_limits = [self.lower_limits, self.upper_limits]
+
         self.discrete_env = DiscreteEnvironment(resolution, self.lower_limits, self.upper_limits)
 
         # add an obstacle
@@ -52,7 +57,12 @@ class SimpleEnvironment(object):
         #               for x, y in [[-1, 0], [0, 1], [1, 0], [0, -1]]
         #               if -1 < grid_coord[0] + x < self.discrete_env.num_cells[0] and -1 < grid_coord[1] + y < self.discrete_env.num_cells[1]]
         # return successors
-
+    
+    def ComputeConfigDistance(self, start_config, end_config):
+        ConfigDist = numpy.linalg.norm(end_config - start_config)
+        return ConfigDist
+    
+    
     def ComputeDistance(self, start_id, end_id):
 
         # dist = 0
@@ -126,3 +136,154 @@ class SimpleEnvironment(object):
             if self.robot.GetEnv().CheckCollision(self.robot, self.table):
                 return True
         return False
+
+    def SetGoalParameters(self, goal_config, p = 0.2):
+        self.goal_config = goal_config
+        self.p = p
+
+    def GenerateRandomConfiguration(self):
+        config = [0] * 2;
+        lower_limits, upper_limits = self.boundary_limits
+        while True:
+          config = [(random.random() - 0.5)*(u - l) + 0.5*(u + l) for u, l in zip(upper_limits,lower_limits)]
+          robot_pose = numpy.array([[ 0, 0, 0, config[0]], 
+                                  [0, 0,  0, config[1]], 
+                                  [ 0, 0,  0, 0], 
+                                  [ 0, 0,  0, 1]])
+          with self.robot.GetEnv():
+            self.robot.SetTransform(robot_pose)
+          c3 = self.robot.GetEnv().CheckCollision(self.robot) #condition 3: robot is in collision
+          if not c3: break          
+        return numpy.array(config)
+    def InLimits(self,config):
+        lower_limits, upper_limits = self.boundary_limits
+        return sum([not (lower_limits[i] <= config[i] <= upper_limits[i]) for i in range(len(lower_limits))]) == 0
+
+    def SetGoalParameters(self, goal_config, p = 0.2):
+        self.goal_config = goal_config
+        self.p = p
+        
+    def GenerateRandomConfiguration(self):
+        config = [0] * 2;
+        lower_limits, upper_limits = self.boundary_limits
+        while True:
+          config = [(random.random() - 0.5)*(u - l) + 0.5*(u + l) for u, l in zip(upper_limits,lower_limits)]
+          robot_pose = numpy.array([[ 0, 0, 0, config[0]], 
+                                  [0, 0,  0, config[1]], 
+                                  [ 0, 0,  0, 0], 
+                                  [ 0, 0,  0, 1]])
+          with self.robot.GetEnv():
+            self.robot.SetTransform(robot_pose)
+          c3 = self.robot.GetEnv().CheckCollision(self.robot) #condition 3: robot is in collision
+          if not c3: break          
+        return numpy.array(config)
+
+    def Extend(self, start_config, end_config):
+        
+        #
+        # TODO: Implement a function which attempts to extend from 
+        #   a start configuration to a goal configuration
+        #
+
+        stepSize = 0.01
+        numOfInterp = int(self.ComputeDistance(start_config, end_config)/stepSize)
+        
+        x = numpy.linspace(start_config[0], end_config[0], numOfInterp)
+        yinterp = numpy.linspace(start_config[1], end_config[1], numOfInterp)
+
+        for i in range(numOfInterp):
+            
+            check = self.CollisionChecker([x[i], yinterp[i]])
+
+            if check == False:
+                extend_config = numpy.array([x[i], yinterp[i]])
+            else:
+                break
+
+        if i == 1 or i == 0:
+            return None
+        else :
+            return extend_config
+    
+    def Extend_max(self, start_config, end_config, max_extend):
+        
+        #
+        # TODO: Implement a function which attempts to extend from 
+        #   a start configuration to a goal configuration
+        #
+        
+        plan_step_size = 0.05
+        unit_vec = end_config - start_config #[x - y for x, y in zip(end_config,start_config)]
+        dist = numpy.linalg.norm(unit_vec)
+        unit_vec = [i / dist for i in unit_vec]
+        count = 0
+        curr_config = start_config
+        c3 = False
+        while True:
+          #print count
+          c1 = count*plan_step_size < dist  #condition 1: end_config is not  reached
+          c2 =  count*plan_step_size < max_extend #condition 2: within boundaries
+
+          if  not c1: return end_config
+          if not c2: return numpy.array(curr_config) - plan_step_size*numpy.array(unit_vec)
+          c3 = not self.CollisionChecker(curr_config) #condition 3: robot is not in collision
+          if not c3: break
+          count += 1
+          curr_config = [ x + count*plan_step_size*y for x,y in zip(start_config, unit_vec)]
+        #print curr_config, start_config  
+        if all([i == j for i,j in zip(curr_config,start_config)]): return None
+        curr_config = [ x - plan_step_size*y for x,y in zip(start_config, unit_vec)]
+        if all([i == j for i,j in zip(curr_config,start_config)]): return None
+        return numpy.array(curr_config)
+
+    def CollisionChecker(self, config):
+        config_pose = numpy.array([[ 1, 0,  0, config[0]], 
+                                   [ 0, 1,  0, config[1]], 
+                                   [ 0, 0,  1, 0], 
+                                   [ 0, 0,  0, 1]])
+
+        with self.robot.GetEnv():
+            self.robot.SetTransform(config_pose)
+
+        check = self.robot.GetEnv().CheckCollision(self.robot)
+        return check
+
+    def ShortenPath(self, path, timeout=5.0):
+        
+        # 
+        # TODO: Implement a function which performs path shortening
+        #  on the given path.  Terminate the shortening after the 
+        #  given timout (in seconds).
+        #
+        tstart = time.time()
+
+        while ( (time.time() - tstart) < timeout ):
+
+
+            x1, x2 = sorted(random.sample(range(len(path)), 2))
+
+
+            #x1 = int(numpy.random.uniform(0,len(path)-1))
+            #x2 = int(numpy.random.uniform(x1+1,len(path)-1))
+            start_config = path[x1]
+            end_config = path[x2]
+
+            #print (x1,x2)
+            #print len(path)
+            #print path
+
+            extend_config = self.Extend(start_config, end_config)
+
+            if extend_config != None:
+                if all(extend_config ==  end_config):
+                    
+                    #print "successful connection"
+                    new_path = []
+                    for i in range(0,x1+1):
+                        new_path.append(path[i])
+                    for i in range(x2,len(path)):
+                        new_path.append(path[i])
+                    path = new_path
+ 
+      
+        return path
